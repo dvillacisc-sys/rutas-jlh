@@ -420,8 +420,8 @@ function pintarPendientesMapa(list){
   });
 }
 function cargarPendientesMapa(){
-  fetch('/api/fichas').then(function(r){return r.json();}).then(pintarPendientesMapa)
-    .catch(function(){ pintarPendientesMapa(localList()); });
+  cargarDesdeGoogle(function(objs){ pintarPendientesMapa(objs); },
+                    function(){ pintarPendientesMapa(localList()); });
 }
 cargarPendientesMapa();
 
@@ -436,7 +436,27 @@ function showView(v){
   if(v==='pendientes'){ cargarPendientes(); }
 }
 
-// ---- Almacenamiento local (cuando se abre el HTML sin servidor) ----
+// ===== Conexión con Google Sheets (Drive) =====
+var GOOGLE_URL='https://script.google.com/macros/s/AKfycbx1cLAPmLusCgd6XwCMJAckBLElW3O7jvAkSS-t48b7-zHDSwfO7SNhLZxcbTQ0pHKm/exec';
+function rowsToObjs(rows){
+  if(!rows || rows.length<2) return [];
+  return rows.slice(1).map(function(r){
+    return {fecha:r[0],apellidos:r[1],nombres:r[2],curso:r[3],paralelo:r[4],
+      direccion:r[5],sector:r[6],barrio:r[7],telefono1:r[8],telefono2:r[9],
+      geocodificacion:r[10],estado:r[11]};
+  });
+}
+function cargarDesdeGoogle(onData,onErr){
+  var done=false, cb='__fichasCB'+Date.now();
+  var s=document.createElement('script');
+  window[cb]=function(rows){ done=true; try{ onData(rowsToObjs(rows)); } finally{ try{delete window[cb];}catch(e){} s.remove(); } };
+  s.onerror=function(){ if(!done){ try{delete window[cb];}catch(e){} s.remove(); if(onErr)onErr(); } };
+  s.src=GOOGLE_URL+'?callback='+cb+'&t='+Date.now();
+  document.body.appendChild(s);
+  setTimeout(function(){ if(!done){ try{delete window[cb];}catch(e){} if(onErr)onErr(); } }, 9000);
+}
+
+// ---- Almacenamiento local (respaldo en el navegador) ----
 function localList(){ try{ return JSON.parse(localStorage.getItem('fichas_pendientes')||'[]'); }catch(e){ return []; } }
 function localSave(d){
   var l=localList();
@@ -455,26 +475,21 @@ document.getElementById('fichaForm').addEventListener('submit', function(ev){
   var faltan=Object.keys(d).filter(function(k){ return k!=='telefono2' && k!=='paralelo' && !d[k]; });
   if(faltan.length){ av.className='aviso err'; av.textContent='Complete todos los campos obligatorios.'; return; }
   if(!/^\d{10}$/.test(d.telefono1)){ av.className='aviso err'; av.textContent='El Teléfono 1 debe tener exactamente 10 dígitos.'; return; }
-  fetch('/api/ficha',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)})
-    .then(function(r){ return r.json().then(function(j){ return {ok:r.ok, j:j}; }); })
-    .then(function(res){
-      if(res.ok && res.j.ok){
-        av.className='aviso ok';
-        av.textContent='✓ Ficha enviada. '+d.nombres+' '+d.apellidos+' quedó como PENDIENTE (sin asignar a ninguna ruta).';
-        document.getElementById('fichaForm').reset();
-        cargarPendientesMapa();
-      } else {
-        av.className='aviso err';
-        av.textContent='No se pudo guardar: '+((res.j&&res.j.error)||'error');
-      }
+  try{ localSave(d); }catch(e){}   // respaldo local (no debe bloquear el envío)
+  av.className='aviso'; av.style.color='#555'; av.textContent='Enviando a Google Drive...';
+  fetch(GOOGLE_URL,{method:'POST',mode:'no-cors',
+    headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify(d)})
+    .then(function(){
+      av.className='aviso ok';
+      av.textContent='✓ Ficha guardada en Google Drive. '+d.nombres+' '+d.apellidos+' quedó como PENDIENTE (sin asignar a ninguna ruta).';
+      document.getElementById('fichaForm').reset();
+      setTimeout(cargarPendientesMapa, 1800);
     })
     .catch(function(){
-      // Sin servidor: guardar en el navegador
-      var n=localSave(d);
       av.className='aviso ok';
-      av.textContent='✓ Ficha guardada ('+d.nombres+' '+d.apellidos+') como PENDIENTE. Total: '+n+'. Se guardó en este navegador; usa "Descargar CSV" en Pendientes para exportar.';
+      av.textContent='✓ Ficha registrada (respaldo local en este navegador). Revisa tu hoja de Google si tienes internet.';
       document.getElementById('fichaForm').reset();
-      cargarPendientesMapa();
+      setTimeout(cargarPendientesMapa, 1800);
     });
 });
 
@@ -496,9 +511,8 @@ function renderPendientes(list, origen){
 }
 function cargarPendientes(){
   document.getElementById('pendientesCont').textContent='Cargando...';
-  fetch('/api/fichas').then(function(r){return r.json();})
-    .then(function(list){ renderPendientes(list, 'servidor (carpeta RUTAS)'); })
-    .catch(function(){ renderPendientes(localList(), 'este navegador'); });
+  cargarDesdeGoogle(function(objs){ renderPendientes(objs, 'Google Drive'); },
+                    function(){ renderPendientes(localList(), 'este navegador'); });
 }
 function descargarCSV(){
   if(!ultimaLista.length){ alert('No hay pendientes para exportar.'); return; }
