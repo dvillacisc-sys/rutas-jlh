@@ -73,10 +73,10 @@
   .legend{margin-top:8px;font-size:12px;}
   .swatch{display:inline-block;width:24px;height:4px;vertical-align:middle;margin-right:6px;}
   .dot{display:inline-block;width:14px;height:14px;border-radius:50%;vertical-align:middle;margin-right:6px;border:2px solid #fff;box-shadow:0 1px 2px rgba(0,0,0,.4);}
-  .parada-num{color:#fff;border-radius:50%;width:26px;height:26px;
-        display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:13px;
-        border:2px solid #fff;box-shadow:0 2px 4px rgba(0,0,0,.3);}
-  .r2{background:#1565c0;} .r13{background:#d32f2f;} .r12{background:#ef6c00;} .r6{background:#7b1fa2;} .r7{background:#00acc1;} .pend-marker{background:#000;border-color:#ffd600;}
+  .parada-num{color:#fff;border-radius:11px;width:48px;height:22px;box-sizing:border-box;
+        display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:11px;
+        border:2px solid #fff;box-shadow:0 2px 4px rgba(0,0,0,.3);white-space:nowrap;}
+  .r2{background:#1565c0;} .r13{background:#d32f2f;} .r12{background:#ef6c00;} .r6{background:#7b1fa2;} .r7{background:#00acc1;} .pend-marker{background:#000;border-color:#ffd600;width:24px;height:24px;border-radius:50%;}
   .school-marker{background:#2e7d32;border-radius:50%;width:42px;height:42px;
         display:flex;align-items:center;justify-content:center;font-size:22px;
         border:3px solid #fff;box-shadow:0 3px 8px rgba(0,0,0,.5);}
@@ -107,6 +107,7 @@
 <div class="info">
 <h3>RUTAS 2 · 12 · 13 - Quito</h3>
 <div>R2:10 · R6:9 · R7:11 · R12:14 · R13:11 paradas</div>
+<div id="totEst" style="font-weight:700;margin-top:3px;color:#0d47a1;">👥 Estudiantes: …</div>
 <div class="legend">
 <div><span class="dot" style="background:#1565c0;"></span>Paradas Ruta 2</div>
 <div><span class="dot" style="background:#ef6c00;"></span>Paradas Ruta 12</div>
@@ -212,9 +213,10 @@ guia(paradas2,'#1565c0'); guia(paradas12,'#ef6c00'); guia(paradas13,'#d32f2f'); 
 var indice=[];  // {nombre, norm, ruta, marker}
 function norm(s){return s.normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().trim();}
 function dibujar(par,cls,et){
+  var pref=et.replace('Ruta ','R');
   par.forEach(function(p){
-    var icon=L.divIcon({className:'',html:'<div class="parada-num '+cls+'">'+p[0]+'</div>',
-      iconSize:[26,26],iconAnchor:[13,13]});
+    var icon=L.divIcon({className:'',html:'<div class="parada-num '+cls+'">'+pref+'-'+p[0]+'</div>',
+      iconSize:[48,22],iconAnchor:[24,11]});
     var extra='';
     if(p[4]) extra+='<br>Curso: '+p[4];
     if(p[5]) extra+='<br>Tel: '+p[5];
@@ -370,6 +372,13 @@ document.getElementById('qdirficha').addEventListener('keydown',function(ev){
 var RUTAS_DEF=[['Ruta 2',paradas2,'#1565c0'],['Ruta 6',paradas6,'#7b1fa2'],
                ['Ruta 7',paradas7,'#00acc1'],['Ruta 12',paradas12,'#ef6c00'],
                ['Ruta 13',paradas13,'#d32f2f']];
+// Total de estudiantes en todas las rutas (cuenta paradas consolidadas de hermanos)
+(function(){
+  function contar(par){ var t=0; par.forEach(function(p){ t += p[1].split(/\s\/\s|\sy\s/).length; }); return t; }
+  var tot=0; RUTAS_DEF.forEach(function(rt){ tot += contar(rt[1]); });
+  var el=document.getElementById('totEst');
+  if(el) el.textContent='👥 Estudiantes en total: '+tot;
+})();
 function haversine(a,b){var R=6371000,r=Math.PI/180;
   var dla=(b[0]-a[0])*r,dlo=(b[1]-a[1])*r;
   var h=Math.sin(dla/2)*Math.sin(dla/2)+Math.cos(a[0]*r)*Math.cos(b[0]*r)*Math.sin(dlo/2)*Math.sin(dlo/2);
